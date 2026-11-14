@@ -3,8 +3,13 @@ import { Server } from "socket.io";
 import { engine } from "./engine.js";
 import { EV } from "./protocol.js";
 
-const httpServer = createServer((_req, res) => {
-  // Simple HTTP health check endpoint.
+const httpServer = createServer((req, res) => {
+  if (req.url !== "/healthz") {
+    res.writeHead(404);
+    res.end();
+    return;
+  }
+  // Keep health checks off the root path used by Socket.IO.
   res.writeHead(200, { "Content-Type": "application/json" });
   res.end(JSON.stringify({ ok: true, service: "mafia-game-service" }));
 });

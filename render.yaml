@@ -5,7 +5,7 @@ services:
     plan: free
     dockerfilePath: ./deploy/render-game.Dockerfile
     dockerContext: .
-    healthCheckPath: /
+    healthCheckPath: /healthz
     envVars:
       - key: HOST
         value: 0.0.0.0
