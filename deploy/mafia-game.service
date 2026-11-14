@@ -1,0 +1,17 @@
+[Unit]
+Description=Mafia Socket.IO game service
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=mafia
+WorkingDirectory=/opt/mafia
+EnvironmentFile=/opt/mafia/.env
+Environment=GAME_SERVICE_PORT=3003
+ExecStart=/home/mafia/.bun/bin/bun /opt/mafia/mini-services/game-service/src/index.ts
+Restart=always
+RestartSec=3
+
+[Install]
+WantedBy=multi-user.target

@@ -1,0 +1,398 @@
+@import "tailwindcss";
+
+@custom-variant dark (&:is(.dark *));
+
+/* ──────────────────────────────────────────────────────────────────────────
+ * Mafia – No Host Needed · Design tokens
+ * Cinematic dark + crimson. Single source of truth for color, type, motion.
+ * ────────────────────────────────────────────────────────────────────────── */
+@theme inline {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --font-sans: var(--font-geist-sans);
+  --font-mono: var(--font-geist-mono);
+  --color-sidebar-ring: var(--sidebar-ring);
+  --color-sidebar-border: var(--sidebar-border);
+  --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
+  --color-sidebar-accent: var(--sidebar-accent);
+  --color-sidebar-primary-foreground: var(--sidebar-primary-foreground);
+  --color-sidebar-primary: var(--sidebar-primary);
+  --color-sidebar-foreground: var(--sidebar-foreground);
+  --color-sidebar: var(--sidebar);
+  --color-chart-5: var(--chart-5);
+  --color-chart-4: var(--chart-4);
+  --color-chart-3: var(--chart-3);
+  --color-chart-2: var(--chart-2);
+  --color-chart-1: var(--chart-1);
+  --color-ring: var(--ring);
+  --color-input: var(--input);
+  --color-border: var(--border);
+  --color-destructive: var(--destructive);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-accent: var(--accent);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-muted: var(--muted);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-secondary: var(--secondary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-primary: var(--primary);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-popover: var(--popover);
+  --color-card-foreground: var(--card-foreground);
+  --color-card: var(--card);
+  --radius-sm: calc(var(--radius) - 4px);
+  --radius-md: calc(var(--radius) - 2px);
+  --radius-lg: var(--radius);
+  --radius-xl: calc(var(--radius) + 4px);
+
+  /* Motion easing tokens — shared with Framer Motion. */
+  --ease-out-expo: cubic-bezier(0.22, 1, 0.36, 1);
+  --ease-in-out-quint: cubic-bezier(0.83, 0, 0.17, 1);
+  --dur-micro: 220ms;
+  --dur-tap: 160ms;
+  --dur-page: 520ms;
+  --dur-section: 420ms;
+}
+
+:root {
+  /* The product is dark-first. The "light" palette is the same brand
+     expressed lighter, kept for completeness. */
+  --radius: 0.875rem;
+
+  /* Brand colors — derived from the logo */
+  --crimson: #C62828;
+  --crimson-deep: #7A1417;
+  --crimson-soft: #FF5252;
+  --crimson-glow: rgba(198, 40, 40, 0.35);
+
+  /* Surfaces */
+  --background: oklch(0.13 0.012 20);          /* #0A0506 ≈ warm near-black */
+  --foreground: oklch(0.95 0.012 20);          /* #F5ECEC warm off-white */
+  --card: oklch(0.16 0.018 18);                /* deep maroon-black */
+  --card-foreground: oklch(0.95 0.012 20);
+  --popover: oklch(0.18 0.02 18);
+  --popover-foreground: oklch(0.95 0.012 20);
+  --primary: oklch(0.50 0.20 25);              /* crimson #C62828 */
+  --primary-foreground: oklch(0.97 0.012 20);
+  --secondary: oklch(0.21 0.025 18);           /* #241012 */
+  --secondary-foreground: oklch(0.92 0.012 20);
+  --muted: oklch(0.20 0.02 18);
+  --muted-foreground: oklch(0.70 0.018 18);    /* #A89A9B muted rose-grey */
+  --accent: oklch(0.26 0.05 22);
+  --accent-foreground: oklch(0.97 0.012 20);
+  --destructive: oklch(0.62 0.24 27);
+  --border: oklch(1 0 0 / 8%);
+  --input: oklch(1 0 0 / 12%);
+  --ring: oklch(0.55 0.22 25);
+  --chart-1: oklch(0.55 0.22 25);
+  --chart-2: oklch(0.65 0.16 80);
+  --chart-3: oklch(0.78 0.14 84);
+  --chart-4: oklch(0.55 0.20 350);
+  --chart-5: oklch(0.45 0.20 18);
+  --sidebar: oklch(0.15 0.018 18);
+  --sidebar-foreground: oklch(0.95 0.012 20);
+  --sidebar-primary: oklch(0.50 0.20 25);
+  --sidebar-primary-foreground: oklch(0.97 0.012 20);
+  --sidebar-accent: oklch(0.26 0.05 22);
+  --sidebar-accent-foreground: oklch(0.97 0.012 20);
+  --sidebar-border: oklch(1 0 0 / 8%);
+  --sidebar-ring: oklch(0.55 0.22 25);
+
+  /* Shadows */
+  --shadow-card: 0 1px 0 0 oklch(1 0 0 / 4%) inset, 0 8px 24px -12px oklch(0 0 0 / 0.6);
+  --shadow-glow: 0 0 32px -8px var(--crimson-glow);
+  --shadow-glow-strong: 0 0 48px -4px rgba(198, 40, 40, 0.55);
+}
+
+.dark {
+  /* Same as :root — we are dark-first by default. The .dark class is a no-op
+     so the html element's className="dark" doesn't override anything. */
+  --background: oklch(0.13 0.012 20);
+  --foreground: oklch(0.95 0.012 20);
+  --card: oklch(0.16 0.018 18);
+  --card-foreground: oklch(0.95 0.012 20);
+  --popover: oklch(0.18 0.02 18);
+  --popover-foreground: oklch(0.95 0.012 20);
+  --primary: oklch(0.55 0.22 25);
+  --primary-foreground: oklch(0.97 0.012 20);
+  --secondary: oklch(0.21 0.025 18);
+  --secondary-foreground: oklch(0.92 0.012 20);
+  --muted: oklch(0.20 0.02 18);
+  --muted-foreground: oklch(0.70 0.018 18);
+  --accent: oklch(0.26 0.05 22);
+  --accent-foreground: oklch(0.97 0.012 20);
+  --destructive: oklch(0.65 0.24 27);
+  --border: oklch(1 0 0 / 8%);
+  --input: oklch(1 0 0 / 12%);
+  --ring: oklch(0.55 0.22 25);
+  --chart-1: oklch(0.55 0.22 25);
+  --chart-2: oklch(0.65 0.16 80);
+  --chart-3: oklch(0.78 0.14 84);
+  --chart-4: oklch(0.55 0.20 350);
+  --chart-5: oklch(0.45 0.20 18);
+  --sidebar: oklch(0.15 0.018 18);
+  --sidebar-foreground: oklch(0.95 0.012 20);
+  --sidebar-primary: oklch(0.50 0.20 25);
+  --sidebar-primary-foreground: oklch(0.97 0.012 20);
+  --sidebar-accent: oklch(0.26 0.05 22);
+  --sidebar-accent-foreground: oklch(0.97 0.012 20);
+  --sidebar-border: oklch(1 0 0 / 8%);
+  --sidebar-ring: oklch(0.55 0.22 25);
+}
+
+@layer base {
+  * {
+    @apply border-border outline-ring/50;
+  }
+  html {
+    /* Keep the brand background painted at the edges even before React mounts. */
+    background: var(--background);
+    min-height: 100%;
+  }
+  body {
+    @apply bg-background text-foreground;
+    -webkit-tap-highlight-color: transparent;
+    -webkit-touch-callout: none;
+    user-select: none;
+    overscroll-behavior-y: none;
+    /* Premium typographic defaults */
+    text-rendering: optimizeLegibility;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+    font-feature-settings: "ss01", "cv01", "cv02", "cv03";
+    min-height: 100vh;
+    min-height: 100dvh;
+  }
+  /* Allow text selection where it matters */
+  input, textarea, [contenteditable], .selectable {
+    user-select: text;
+    -webkit-user-select: text;
+  }
+  /* Headings: tight, confident */
+  h1, h2, h3, h4 {
+    letter-spacing: -0.018em;
+  }
+}
+
+/* Dynamic viewport sizing keeps every game screen inside mobile browser chrome. */
+.min-h-screen {
+  min-height: 100vh;
+  min-height: 100dvh;
+}
+
+.home-screen {
+  padding-left: max(1.25rem, env(safe-area-inset-left));
+  padding-right: max(1.25rem, env(safe-area-inset-right));
+  padding-top: max(1.5rem, env(safe-area-inset-top));
+  padding-bottom: max(1.5rem, env(safe-area-inset-bottom));
+}
+
+@keyframes screenEnter {
+  from { opacity: 0; transform: translateY(5px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+.screen-enter { animation: screenEnter 160ms ease-out both; }
+
+@media (max-height: 650px) {
+  .home-screen { justify-content: flex-start; }
+}
+
+/* ── Touch + motion base ─────────────────────────────────────────────────── */
+button, a {
+  touch-action: manipulation;
+}
+
+/* ── Custom scrollbar (thin, dark, crimson on hover) ─────────────────────── */
+*::-webkit-scrollbar { width: 8px; height: 8px; }
+*::-webkit-scrollbar-track { background: transparent; }
+*::-webkit-scrollbar-thumb {
+  background: oklch(1 0 0 / 8%);
+  border-radius: 999px;
+  border: 2px solid transparent;
+  background-clip: padding-box;
+}
+*::-webkit-scrollbar-thumb:hover { background: rgba(198, 40, 40, 0.45); background-clip: padding-box; }
+.thin-scroll::-webkit-scrollbar { width: 6px; height: 6px; }
+
+/* ── Text selection — crimson ────────────────────────────────────────────── */
+::selection {
+  background: rgba(198, 40, 40, 0.32);
+  color: #F5ECEC;
+}
+
+/* ── Focus ring — crimson, accessible ────────────────────────────────────── */
+:focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 2px var(--background), 0 0 0 4px rgba(198, 40, 40, 0.85);
+  border-radius: 4px;
+}
+
+/* ── Background grain — barely-there warm noise ───────────────────────────── */
+.bg-grain {
+  background-image:
+    radial-gradient(circle at 1px 1px, rgba(245, 236, 236, 0.025) 1px, transparent 0);
+  background-size: 22px 22px;
+}
+.bg-ambient {
+  background:
+    radial-gradient(60% 50% at 50% -10%, rgba(198, 40, 40, 0.16), transparent 70%),
+    radial-gradient(40% 30% at 80% 100%, rgba(122, 20, 23, 0.18), transparent 60%),
+    radial-gradient(35% 30% at 0% 80%, rgba(122, 20, 23, 0.12), transparent 60%);
+}
+
+/* ── Surface helpers ─────────────────────────────────────────────────────── */
+.surface {
+  background: var(--card);
+  border: 1px solid var(--border);
+  box-shadow: var(--shadow-card);
+  backdrop-filter: blur(8px) saturate(120%);
+}
+.surface-hover {
+  transition: border-color var(--dur-micro) var(--ease-out-expo),
+              box-shadow var(--dur-micro) var(--ease-out-expo),
+              transform var(--dur-micro) var(--ease-out-expo);
+}
+.surface-hover:hover {
+  border-color: rgba(198, 40, 40, 0.55);
+  box-shadow: var(--shadow-glow);
+}
+
+/* ── Animations ──────────────────────────────────────────────────────────── */
+@keyframes fadeUp {
+  from { opacity: 0; transform: translateY(12px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+.fade-up { animation: fadeUp var(--dur-section) var(--ease-out-expo) both; }
+
+@keyframes scaleIn {
+  from { opacity: 0; transform: scale(0.97); }
+  to   { opacity: 1; transform: scale(1); }
+}
+.scale-in { animation: scaleIn var(--dur-section) var(--ease-out-expo) both; }
+
+@keyframes softPulse {
+  0%, 100% { opacity: 0.55; transform: scale(1); }
+  50%      { opacity: 1;    transform: scale(1.02); }
+}
+.soft-pulse { animation: softPulse 2.4s ease-in-out infinite; }
+
+@keyframes crimsonGlow {
+  0%, 100% { box-shadow: 0 0 0 0 rgba(198, 40, 40, 0.0); }
+  50%      { box-shadow: 0 0 36px -4px rgba(198, 40, 40, 0.45); }
+}
+.crimson-glow { animation: crimsonGlow 3.2s ease-in-out infinite; }
+
+@keyframes shimmer {
+  0%   { transform: translateX(-100%); }
+  100% { transform: translateX(100%); }
+}
+
+@keyframes slowPulse {
+  0%, 100% { opacity: 0.6; }
+  50%      { opacity: 1; }
+}
+
+@keyframes progressFill {
+  0%   { transform: scaleX(0); }
+  100% { transform: scaleX(1); }
+}
+.progress-fill { transform-origin: left; animation: progressFill 1.6s var(--ease-out-expo) forwards; }
+
+@keyframes spin {
+  to { transform: rotate(360deg); }
+}
+.spin { animation: spin 1s linear infinite; }
+
+/* ── Skeleton (subtle maroon shimmer) ─────────────────────────────────────── */
+.skeleton {
+  background: linear-gradient(90deg,
+    rgba(36, 16, 18, 0.0) 0%,
+    rgba(198, 40, 40, 0.08) 40%,
+    rgba(36, 16, 18, 0.0) 80%);
+  background-color: oklch(0.20 0.018 18);
+  border-radius: 8px;
+  position: relative;
+  overflow: hidden;
+}
+.skeleton::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(90deg, transparent, rgba(245, 236, 236, 0.04), transparent);
+  transform: translateX(-100%);
+  animation: shimmer 1.6s infinite;
+}
+
+/* ── Custom cursor (desktop only) ────────────────────────────────────────── */
+@media (hover: hover) and (pointer: fine) {
+  /* Hide the native cursor when our custom one is active.
+     Inputs keep the text cursor via the explicit cursor: text below. */
+  body.has-custom-cursor, body.has-custom-cursor * {
+    cursor: none !important;
+  }
+  body.has-custom-cursor input,
+  body.has-custom-cursor textarea,
+  body.has-custom-cursor [contenteditable],
+  body.has-custom-cursor .cursor-text,
+  body.has-custom-cursor .selectable {
+    cursor: text !important;
+  }
+}
+.cursor-dot, .cursor-ring {
+  position: fixed;
+  top: 0;
+  left: 0;
+  pointer-events: none;
+  z-index: 9999;
+  border-radius: 50%;
+  will-change: transform;
+  mix-blend-mode: screen;
+}
+.cursor-dot {
+  width: 6px; height: 6px;
+  background: #C62828;
+  margin: -3px 0 0 -3px;
+}
+.cursor-ring {
+  width: 28px; height: 28px;
+  margin: -14px 0 0 -14px;
+  border: 1px solid rgba(198, 40, 40, 0.65);
+  transition: width 240ms var(--ease-out-expo),
+              height 240ms var(--ease-out-expo),
+              margin 240ms var(--ease-out-expo),
+              border-color 240ms var(--ease-out-expo),
+              background-color 240ms var(--ease-out-expo);
+}
+.cursor-ring.is-hover {
+  width: 44px; height: 44px;
+  margin: -22px 0 0 -22px;
+  border-color: rgba(255, 82, 82, 0.9);
+  background: rgba(198, 40, 40, 0.08);
+}
+.cursor-ring.is-pressed {
+  width: 22px; height: 22px;
+  margin: -11px 0 0 -11px;
+  border-color: rgba(255, 82, 82, 1);
+}
+.cursor-ring.is-view {
+  width: 56px; height: 56px;
+  margin: -28px 0 0 -28px;
+  border-color: rgba(255, 82, 82, 0.7);
+  background: rgba(198, 40, 40, 0.05);
+}
+
+/* ── Reduced motion ──────────────────────────────────────────────────────── */
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.001ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.001ms !important;
+  }
+  body.has-custom-cursor,
+  body.has-custom-cursor * { cursor: auto !important; }
+  .cursor-dot, .cursor-ring { display: none !important; }
+}
+
+/* ── Utilities ───────────────────────────────────────────────────────────── */
+.text-balance { text-wrap: balance; }
+.text-pretty  { text-wrap: pretty; }

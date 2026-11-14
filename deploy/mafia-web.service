@@ -1,0 +1,19 @@
+[Unit]
+Description=Mafia web app
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=mafia
+WorkingDirectory=/opt/mafia
+EnvironmentFile=/opt/mafia/.env
+Environment=NODE_ENV=production
+Environment=HOSTNAME=127.0.0.1
+Environment=PORT=3000
+ExecStart=/usr/bin/node /opt/mafia/.next/standalone/server.js
+Restart=always
+RestartSec=3
+
+[Install]
+WantedBy=multi-user.target
