@@ -38,30 +38,33 @@ while (!stopping && app.exitCode === null && Date.now() < deadline) {
 if (app.exitCode !== null) process.exitCode = app.exitCode ?? 1;
 if (stopping || app.exitCode !== null) process.exitCode ??= 1;
 
+let localReady = false;
 try {
   const response = await fetch("http://127.0.0.1:3000");
   if (!response.ok) throw new Error(`Local app returned HTTP ${response.status}`);
+  localReady = true;
 } catch (error) {
   console.error("The app did not become ready on port 3000 within two minutes.", error.message);
   stop();
   process.exitCode = 1;
-  return;
 }
 
-console.log("Starting a temporary public link. Share the trycloudflare.com URL below:");
-tunnel = spawn("cloudflared", ["tunnel", "--url", "http://127.0.0.1:3000"], {
-  cwd: root,
-  stdio: "inherit",
-});
-tunnel.on("error", (error) => {
-  console.error("Could not start cloudflared. Install it with: brew install cloudflared");
-  console.error(error.message);
-  stop();
-});
-tunnel.on("exit", (code) => {
-  if (!stopping) {
-    console.error("The public link stopped.");
+if (localReady) {
+  console.log("Starting a temporary public link. Share the trycloudflare.com URL below:");
+  tunnel = spawn("cloudflared", ["tunnel", "--url", "http://127.0.0.1:3000"], {
+    cwd: root,
+    stdio: "inherit",
+  });
+  tunnel.on("error", (error) => {
+    console.error("Could not start cloudflared. Install it with: brew install cloudflared");
+    console.error(error.message);
     stop();
-    process.exitCode = code ?? 1;
-  }
-});
+  });
+  tunnel.on("exit", (code) => {
+    if (!stopping) {
+      console.error("The public link stopped.");
+      stop();
+      process.exitCode = code ?? 1;
+    }
+  });
+}
