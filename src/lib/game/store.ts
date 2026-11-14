@@ -176,7 +176,9 @@ export function useGameSocket() {
 
   useEffect(() => {
     if (socketRef.current) return;
-    const s = io("/?XTransformPort=3003", {
+    const gameServiceUrl = process.env.NEXT_PUBLIC_GAME_SERVICE_URL || "/?XTransformPort=3003";
+    const s = io(gameServiceUrl, {
+      path: "/",
       transports: ["websocket", "polling"],
       reconnection: true,
       reconnectionAttempts: Infinity,

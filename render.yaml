@@ -1,0 +1,36 @@
+services:
+  - type: web
+    name: mafia-game
+    runtime: docker
+    plan: free
+    dockerfilePath: ./deploy/render-game.Dockerfile
+    dockerContext: .
+    healthCheckPath: /
+    envVars:
+      - key: HOST
+        value: 0.0.0.0
+      - key: DATABASE_URL
+        sync: false
+
+  - type: web
+    name: mafia-web
+    runtime: node
+    plan: free
+    buildCommand: npm ci && npm run db:generate && npm run db:push && npm run build
+    startCommand: npm run start
+    healthCheckPath: /
+    envVars:
+      - key: NEXT_PUBLIC_GAME_SERVICE_URL
+        fromService:
+          type: web
+          name: mafia-game
+          envVarKey: RENDER_EXTERNAL_URL
+      - key: NEXT_PUBLIC_APP_URL
+        fromService:
+          type: web
+          name: mafia-web
+          envVarKey: RENDER_EXTERNAL_URL
+      - key: DATABASE_URL
+        sync: false
+      - key: DATABASE_URL_UNPOOLED
+        sync: false

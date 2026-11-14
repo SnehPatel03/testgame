@@ -26,7 +26,18 @@ npm run play:online
 
 Copy the `https://….trycloudflare.com` URL printed in the terminal and send it to your friends. They can open it in their mobile browsers and join with the room code. Keep this terminal and your Mac awake while playing; press **Ctrl+C** to stop the app and link. The link changes each time you run the command. Quick Tunnels are free and need no Cloudflare account, but they are for temporary testing and have no uptime guarantee. For a permanent always-available link, use the VPS steps below.
 
-## Deploy so people can play
+## Deploy free so friends can play without your computer
+
+The quickest hosted option is the included Render Blueprint. It creates a web service and a Socket.IO game service, both on Render's free plan, and uses your existing Neon database. You do not need to keep your Mac running.
+
+1. Push this project to a GitHub repository.
+2. In Render, choose **New → Blueprint**, connect that repository, and select its `render.yaml`.
+3. When prompted, set `DATABASE_URL` on both services to your Neon pooled URL (the hostname includes `-pooler`). Set `DATABASE_URL_UNPOOLED` on the web service to your Neon direct URL.
+4. Deploy. When both services are live, share the `mafia-web` `onrender.com` URL with your friends.
+
+Render's free services sleep after 15 minutes without incoming traffic and can take about a minute to wake. Active rooms are stored in memory, so a service restart clears them; use the game for casual sessions rather than as an always-on production service. [Render free service limits](https://render.com/docs/free)
+
+## Deploy for an always-on link
 
 Use **one Linux VPS** for Next.js, the game service, and Caddy, plus your existing Neon database. This app needs a long-running Socket.IO service and in-memory rooms; a static host or a frontend-only Vercel deployment cannot run the included game service. Keep one game-service instance; restarting it ends active rooms.
 

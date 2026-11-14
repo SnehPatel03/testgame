@@ -162,8 +162,9 @@ io.on("connection", (socket) => {
 // Periodic cleanup of empty rooms every minute.
 setInterval(() => engine.cleanupEmptyRooms(), 60_000);
 
-const PORT = Number(process.env.GAME_SERVICE_PORT ?? 3003);
-httpServer.listen(PORT, "127.0.0.1", () => {
+const PORT = Number(process.env.PORT ?? process.env.GAME_SERVICE_PORT ?? 3003);
+const HOST = process.env.HOST ?? "127.0.0.1";
+httpServer.listen(PORT, HOST, () => {
   console.log(`Mafia game-service running on port ${PORT}`);
 });
 
