@@ -79,7 +79,7 @@ export function RoleRevealScreen() {
                         You are
                       </p>
                       <h1 className="text-4xl font-semibold mb-3 text-balance">
-                        {isMafia ? "Mafia" : "Villager"}
+                        {isMafia ? "માફિયા" : "ગામવાસી"}
                       </h1>
                       <p className="text-xs text-foreground/65 px-6 text-center text-pretty">
                         {isMafia
