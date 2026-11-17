@@ -37,7 +37,19 @@ The quickest hosted option is the included Render Blueprint. It creates a web se
 
 Render's free services sleep after 15 minutes without incoming traffic and can take about a minute to wake. Active rooms are stored in memory, so a service restart clears them; use the game for casual sessions rather than as an always-on production service. [Render free service limits](https://render.com/docs/free)
 
-## Deploy for an always-on link
+## Free always-on VPS option: Oracle Cloud
+
+If Render's Blueprint deploy keeps failing, Oracle Cloud Infrastructure has an Always Free Ampere A1 VM that can run this app continuously without your Mac. The free allowance covers up to 2 OCPUs and 12 GB RAM. Oracle requires a card for identity verification, and VM capacity is not available in every region at all times; choose only resources labeled **Always Free** and do not upgrade the account if you want to avoid paid usage. [Oracle Always Free resources](https://docs.oracle.com/en-us/iaas/Content/FreeTier/freetier_topic-Always_Free_Resources.htm) · [Oracle signup and verification](https://www.oracle.com/cloud/free/faq/)
+
+1. Create an Oracle Cloud Free Tier account. Choose a home region near your friends. Create one **Ampere A1 / Ubuntu ARM64** VM and keep its shape within the Always Free allowance (1 OCPU and 6 GB RAM is enough to start). Assign a public IPv4 address.
+2. Open inbound TCP ports **22, 80, and 443** in the VM's OCI network security list. Keep ports 3000 and 3003 closed to the internet.
+3. Get a free DuckDNS subdomain, point it to the VM's public IP, and replace `mafia.example.com` in `Caddyfile` with that hostname. DuckDNS supports free subdomains and IP updates. Caddy will issue HTTPS once DNS points to the VM and ports 80/443 are reachable. [DuckDNS](https://www.duckdns.org/spec.jsp) · [Caddy automatic HTTPS](https://caddyserver.com/docs/automatic-https)
+4. Follow the VPS setup below on the Ubuntu VM. Set `NEXT_PUBLIC_APP_URL` in `.env` to `https://<your-subdomain>.duckdns.org` before building. Use the existing Neon pooled and direct URLs; do not put credentials in GitHub.
+5. Once both systemd services and Caddy are running, share `https://<your-subdomain>.duckdns.org`. Your Mac can be off.
+
+Oracle may show **Out of host capacity** when creating an Always Free VM. That is a region capacity issue; retry later or choose a different home region before creating the account. [Oracle Always Free capacity note](https://docs.oracle.com/en-us/iaas/Content/FreeTier/freetier_topic-Always_Free_Resources.htm)
+
+## Generic VPS setup
 
 Use **one Linux VPS** for Next.js, the game service, and Caddy, plus your existing Neon database. This app needs a long-running Socket.IO service and in-memory rooms; a static host or a frontend-only Vercel deployment cannot run the included game service. Keep one game-service instance; restarting it ends active rooms.
 
