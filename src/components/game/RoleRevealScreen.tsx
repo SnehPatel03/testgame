@@ -92,9 +92,19 @@ export function RoleRevealScreen() {
                       </h1>
                       <p className="text-xs text-foreground/65 px-6 text-center text-pretty">
                         {isMafia
-                          ? `Eliminate villagers at night.${teammates.length ? ` Your fellow Mafia: ${teammates.map((p) => p.name).join(", ")}.` : " You are the only Mafia."}`
+                          ? "Eliminate villagers at night. Remember your Mafia teammates."
                           : "Survive. Find the Mafia among you."}
                       </p>
+                      {isMafia && (
+                        <div className="mt-4 w-full rounded-xl border border-[rgba(255,82,82,0.35)] bg-[rgba(198,40,40,0.12)] px-4 py-3 text-center">
+                          <p className="text-[9px] uppercase tracking-[0.3em] text-[#FF8585] mb-1.5">
+                            Your Mafia team
+                          </p>
+                          <p className="text-sm font-semibold text-foreground">
+                            {teammates.length ? teammates.map((p) => p.name).join(", ") : "You are the only Mafia"}
+                          </p>
+                        </div>
+                      )}
                       <p className="text-[10px] uppercase tracking-[0.3em] text-foreground/40 mt-5">
                         Release to hide
                       </p>

@@ -23,9 +23,9 @@ export function LobbyScreen() {
   const isHost = me.isHost;
   const players = room.players;
 
-  const effectiveMafia = mafiaCount ?? room.mafiaCount;
+  const maxMafia = Math.max(1, Math.ceil(players.length / 2) - 1);
+  const effectiveMafia = Math.min(mafiaCount ?? room.mafiaCount, maxMafia);
   const minMafia = 1;
-  const maxMafia = Math.max(1, Math.floor(players.length / 2) - 1);
   const canStart = players.length >= 4 && effectiveMafia >= minMafia && effectiveMafia <= maxMafia;
 
   const adjustMafia = (delta: number) => {

@@ -239,7 +239,7 @@ function validateStart(r: Room): string | null {
   if (r.players.size < 4) return "Need at least 4 players to start";
   const m = r.mafiaCount;
   if (m < 1) return "Need at least 1 Mafia";
-  if (m >= Math.floor(r.players.size / 2)) return "Mafia count must be less than half the players";
+  if (m >= Math.ceil(r.players.size / 2)) return "Mafia count must be less than half the players";
   return null;
 }
 
@@ -591,7 +591,7 @@ export const engine = {
     if (r.status !== "lobby") return "Game has already started";
     const c = Math.floor(count);
     if (!Number.isFinite(c) || c < 1) return "Need at least 1 Mafia";
-    if (c >= Math.floor(r.players.size / 2)) return "Mafia count must be less than half the players";
+    if (c >= Math.ceil(r.players.size / 2)) return "Mafia count must be less than half the players";
     r.mafiaCount = c;
     return null;
   },
