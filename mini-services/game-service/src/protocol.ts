@@ -1,8 +1,7 @@
 // Shared protocol types for Mafia – No Host Needed.
 
 export type Role = "mafia" | "villager";
-export type RoomStatus = "lobby" | "night" | "morning" | "winnerVote" | "inVote" | "finished";
-export type WinnerOption = "villagers" | "mafia" | "notYet";
+export type RoomStatus = "lobby" | "night" | "morning" | "inVote" | "finished";
 export type GameWinner = "villagers" | "mafia";
 
 // ── Public player view (sent to clients) ────────────────────────────────────
@@ -11,7 +10,7 @@ export interface PublicPlayer {
   name: string;
   isHost: boolean;
   connected: boolean;
-  ready: boolean;
+  alive: boolean;
 }
 
 // ── Public room view (sent to clients) ──────────────────────────────────────
@@ -29,8 +28,8 @@ export interface PublicRoom {
   nightEndsAt?: number; // epoch ms, only during night
   winner?: GameWinner;
   morningMessage?: string;
-  readyCount?: number;
-  neededReadyCount?: number;
+  leaderboard: Array<{ rank: number; displayName: string; winsAsMafia: number; winsAsVillager: number; totalWins: number; gamesPlayed: number }>;
+  voteEndsAt?: number;
 }
 
 // ── Personalized state for a single client ──────────────────────────────────
@@ -42,11 +41,11 @@ export interface PersonalState {
     isHost: boolean;
     alive: boolean;
     connected: boolean;
-    ready: boolean;
   };
   // Role is sent exactly once at roleAssigned event; clients store it.
   // We never resend the role from the server after it has been delivered.
   role?: Role;
+  meHasVoted?: boolean;
   // During the night phase only:
   nightTask?: NightTask;
 }
@@ -81,11 +80,7 @@ export const EV = {
   ROLE_REVEAL_COMPLETE: "roleRevealComplete",
   SUBMIT_QUIZ_ANSWER: "submitQuizAnswer",
   SELECT_NIGHT_TARGET: "selectNightTarget",
-  SUBMIT_WINNER_VOTE: "submitWinnerVote",
-  MARK_PLAYER_OUT: "markPlayerOut",
-  UNDO_PLAYER_OUT: "undoPlayerOut",
-  TOGGLE_READY: "toggleReady",
-  NEXT_NIGHT: "nextNight",
+  SUBMIT_PLAYER_VOTE: "submitPlayerVote",
   PLAY_AGAIN: "playAgain",
   CLOSE_ROOM: "closeRoom",
   REQUEST_STATE: "requestState",
@@ -96,8 +91,6 @@ export const EV = {
   NIGHT_START: "nightStart",
   NIGHT_RESULT: "nightResult",
   MORNING_ANNOUNCEMENT: "morningAnnouncement",
-  WINNER_VOTE_UPDATED: "winnerVoteUpdated",
-  WINNER_VOTE_RESULT: "winnerVoteResult",
   GAME_FINISHED: "gameFinished",
   ROOM_CLOSED: "roomClosed",
   LEADERBOARD_UPDATED: "leaderboardUpdated",

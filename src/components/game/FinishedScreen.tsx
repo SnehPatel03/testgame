@@ -1,23 +1,12 @@
 "use client";
 
-import { useEffect, useState } from "react";
 import { motion } from "framer-motion";
 import { Button } from "@/components/ui/button";
 import { Trophy, RotateCcw, LogOut, Crown } from "lucide-react";
 import { FadeItem } from "@/components/game/PageTransition";
-import { Skeleton } from "@/components/game/Skeleton";
 import { useGame, useActions } from "@/lib/game/store";
 
 const EASE = [0.22, 1, 0.36, 1] as const;
-
-interface LeaderboardRow {
-  rank: number;
-  displayName: string;
-  winsAsMafia: number;
-  winsAsVillager: number;
-  totalWins: number;
-  gamesPlayed: number;
-}
 
 export function FinishedScreen() {
   const state = useGame((s) => s.state);
@@ -85,46 +74,18 @@ export function FinishedScreen() {
 }
 
 export function LeaderboardCard() {
-  const [rows, setRows] = useState<LeaderboardRow[]>([]);
-  const [loading, setLoading] = useState(true);
-
-  useEffect(() => {
-    let cancelled = false;
-    const load = () => {
-      fetch("/api/leaderboard")
-        .then((r) => r.json())
-        .then((d) => {
-          if (!cancelled) {
-            setRows(d.rows ?? []);
-            setLoading(false);
-          }
-        })
-        .catch(() => setLoading(false));
-    };
-    load();
-    const id = setInterval(load, 5000);
-    return () => {
-      cancelled = true;
-      clearInterval(id);
-    };
-  }, []);
+  const room = useGame((s) => s.state?.room);
+  const rows = room?.leaderboard ?? [];
 
   return (
     <FadeItem delay={0.18}>
       <div className="surface rounded-2xl overflow-hidden">
         <div className="px-4 py-3 border-b border-border/40 flex items-center gap-2">
           <Trophy className="w-3.5 h-3.5 text-[#C62828]" />
-          <h2 className="text-sm font-medium">Global Leaderboard</h2>
+          <h2 className="text-sm font-medium">Room Leaderboard</h2>
         </div>
         <div className="max-h-80 overflow-y-auto thin-scroll">
-          {loading ? (
-            <div className="p-4 space-y-2">
-              <Skeleton className="h-10 w-full" />
-              <Skeleton className="h-10 w-full" />
-              <Skeleton className="h-10 w-full" />
-              <Skeleton className="h-10 w-3/4" />
-            </div>
-          ) : rows.length === 0 ? (
+          {rows.length === 0 ? (
             <div className="p-7 text-center text-sm text-muted-foreground">
               No games recorded yet. Be the first!
             </div>
@@ -187,7 +148,7 @@ export function LeaderboardCard() {
           )}
         </div>
         <p className="px-4 py-2.5 text-[10px] text-muted-foreground/55 border-t border-border/25 leading-relaxed">
-          Sorted by total wins. Roles are never stored here.
+          Scores belong to this room and disappear when it closes.
         </p>
       </div>
     </FadeItem>

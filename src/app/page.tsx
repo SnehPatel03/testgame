@@ -29,10 +29,6 @@ const MorningScreen = dynamic(
   () => import("@/components/game/MorningScreen").then((module) => module.MorningScreen),
   { loading: ScreenLoading },
 );
-const WinnerVoteScreen = dynamic(
-  () => import("@/components/game/WinnerVoteScreen").then((module) => module.WinnerVoteScreen),
-  { loading: ScreenLoading },
-);
 const InVoteScreen = dynamic(
   () => import("@/components/game/InVoteScreen").then((module) => module.InVoteScreen),
   { loading: ScreenLoading },
@@ -83,7 +79,6 @@ export default function Home() {
           {view === "roleReveal" && <RoleRevealScreen />}
           {view === "night" && <NightScreen />}
           {view === "morning" && <MorningScreen />}
-          {view === "winnerVote" && <WinnerVoteScreen />}
           {view === "inVote" && <InVoteScreen />}
           {view === "finished" && <FinishedScreen />}
           {view === "leaderboard" && <LeaderboardScreen />}

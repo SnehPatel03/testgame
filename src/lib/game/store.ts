@@ -9,7 +9,6 @@ import {
   type PersonalState,
   type Role,
   type GameWinner,
-  type WinnerOption,
 } from "./protocol";
 
 // ── Persisted identity (localStorage) ─────────────────────────────────────────
@@ -48,7 +47,6 @@ type Screen =
   | "roleReveal"
   | "night"
   | "morning"
-  | "winnerVote"
   | "inVote"
   | "finished"
   | "leaderboard";
@@ -60,9 +58,9 @@ interface GameStore {
   connecting: boolean;
   state: PersonalState | null;
   role: Role | null; // sent once at roleAssigned; client stores only
+  mafiaTeammates: Array<{ id: string; name: string }>;
   lastError: string | null;
   lastToast: string | null;
-  winnerResult: WinnerOption | null;
   gameWinner: GameWinner | null;
   // Local screen overrides
   showingLeaderboard: boolean;
@@ -76,7 +74,6 @@ interface GameStore {
   internal: {
     onRoomUpdated: (s: PersonalState) => void;
     onRoleAssigned: (r: Role) => void;
-    onWinnerResult: (w: WinnerOption) => void;
     onGameFinished: (w: GameWinner) => void;
     onError: (code: string, message: string) => void;
     onConnected: () => void;
@@ -91,9 +88,9 @@ export const useGame = create<GameStore>((set, get) => ({
   connecting: false,
   state: null,
   role: null,
+  mafiaTeammates: [],
   lastError: null,
   lastToast: null,
-  winnerResult: null,
   gameWinner: null,
   showingLeaderboard: false,
   forceRoleReveal: false,
@@ -108,9 +105,9 @@ export const useGame = create<GameStore>((set, get) => ({
       screen: "home",
       state: null,
       role: null,
+      mafiaTeammates: [],
       lastError: null,
       lastToast: null,
-      winnerResult: null,
       gameWinner: null,
       showingLeaderboard: false,
       forceRoleReveal: false,
@@ -128,7 +125,6 @@ export const useGame = create<GameStore>((set, get) => ({
     },
     onRoleAssigned: (r) =>
       set({ role: r, forceRoleReveal: true, screen: "roleReveal" }),
-    onWinnerResult: (w) => set({ winnerResult: w }),
     onGameFinished: (w) => set({ gameWinner: w, screen: "finished" }),
     onError: (_code, message) => set({ lastError: message, lastToast: message }),
     onConnected: () => set({ connected: true }),
@@ -146,8 +142,6 @@ function deriveScreen(s: PersonalState, current: Screen): Screen {
       return "night";
     case "morning":
       return "morning";
-    case "winnerVote":
-      return "winnerVote";
     case "inVote":
       return "inVote";
     case "finished":
@@ -223,11 +217,10 @@ export function useGameSocket() {
       useGame.getState().reset();
       toast.info("The host closed the room.");
     });
-    s.on(EV.ROLE_ASSIGNED, (p: { role: Role }) => {
+    s.on(EV.ROLE_ASSIGNED, (p: { role: Role; teammates?: Array<{id:string;name:string}> }) => {
       store.internal.onRoleAssigned(p.role);
-      useGame.setState({ screen: "roleReveal" });
+      useGame.setState({ screen: "roleReveal", mafiaTeammates: p.teammates ?? [] });
     });
-    s.on(EV.WINNER_VOTE_RESULT, (p: { result: WinnerOption }) => store.internal.onWinnerResult(p.result));
     s.on(EV.GAME_FINISHED, (p: { winner: GameWinner }) => store.internal.onGameFinished(p.winner));
     s.on(EV.ERROR, (e: { code: string; message: string }) => store.internal.onError(e.code, e.message));
     s.on(EV.LEADERBOARD_UPDATED, () => {
@@ -291,20 +284,18 @@ export function useActions() {
     startGame: (mafiaCount?: number) => socket?.emit(EV.START_GAME, { mafiaCount }),
     roleRevealComplete: () => {
       socket?.emit(EV.ROLE_REVEAL_COMPLETE);
-      // Clear the sticky roleReveal flag and move to whatever the server says now.
+      // Clear the reveal guard, but keep the role card visible until the shared
+      // server timer moves the room from lobby into the first night.
       useGame.setState({ forceRoleReveal: false });
       const s = useGame.getState().state;
-      useGame.setState({ screen: s ? deriveScreen(s, "night") : "night" });
+      useGame.setState({ screen: s?.room.status === "lobby" ? "roleReveal" : s ? deriveScreen(s, "night") : "night" });
     },
     submitQuizAnswer: (answerIndex: number) => socket?.emit(EV.SUBMIT_QUIZ_ANSWER, { answerIndex }),
     selectNightTarget: (targetId: string) => socket?.emit(EV.SELECT_NIGHT_TARGET, { targetId }),
-    submitWinnerVote: (option: WinnerOption) => socket?.emit(EV.SUBMIT_WINNER_VOTE, { option }),
-    markPlayerOut: () => socket?.emit(EV.MARK_PLAYER_OUT),
-    undoPlayerOut: (targetId: string) => socket?.emit(EV.UNDO_PLAYER_OUT, { targetId }),
-    toggleReady: () => socket?.emit(EV.TOGGLE_READY),
+    submitPlayerVote: (targetId: string) => socket?.emit(EV.SUBMIT_PLAYER_VOTE, { targetId }),
     playAgain: () => {
       socket?.emit(EV.PLAY_AGAIN);
-      useGame.setState({ forceRoleReveal: false, role: null, gameWinner: null, winnerResult: null });
+      useGame.setState({ forceRoleReveal: false, role: null, mafiaTeammates: [], gameWinner: null });
     },
     closeRoom: (onResult?: (error?: string) => void) => {
       socket?.timeout(5000).emit(EV.CLOSE_ROOM, (timeoutError, ack: any) => {

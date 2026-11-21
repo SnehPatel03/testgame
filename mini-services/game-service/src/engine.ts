@@ -16,13 +16,11 @@ import {
   type Role,
   type RoomStatus,
   type GameWinner,
-  type WinnerOption,
   type PersonalState,
   type PublicRoom,
   type PublicPlayer,
   type NightTask,
 } from "./protocol.js";
-import { applyGameResult } from "./leaderboard.js";
 
 // ── Internal server-side data structures ───────────────────────────────────
 
@@ -35,10 +33,8 @@ interface ServerPlayer {
   alive: boolean;
   connected: boolean;
   disconnectedAt: number | null;
-  ready: boolean;
   isHost: boolean;
   revealedRole: boolean; // has completed role-reveal
-  lastWinnerVote: WinnerOption | null;
   nightTask: NightTask | null;
   quizAnswerIndex: number | null; // last submitted quiz answer (irrelevant to outcome)
 }
@@ -48,13 +44,11 @@ interface NightState {
   picks: Map<string, string>; // mafiaPlayerId → targetPlayerId
   // Each villager's assigned quiz (shuffled independently). Mafia get a "select" task.
   tasks: Map<string, NightTask>;
+  resolutionTimer?: ReturnType<typeof setTimeout>;
 }
 
-interface WinnerVoteState {
-  votes: Map<string, WinnerOption>; // playerId → option
-  locked: boolean;
-  startedAt: number;
-}
+interface PlayerVoteState { votes: Map<string, string>; endsAt: number }
+interface RoomScore { displayName: string; winsAsMafia: number; winsAsVillager: number; gamesPlayed: number }
 
 interface Room {
   code: string;
@@ -65,7 +59,8 @@ interface Room {
   players: Map<string, ServerPlayer>; // playerId → player
   emptySince: number | null; // when room became empty (epoch ms)
   night: NightState | null;
-  winnerVote: WinnerVoteState | null;
+  playerVote: PlayerVoteState | null;
+  scores: Map<string, RoomScore>;
   morningMessage: string | null;
   winner: GameWinner | null;
   resultRecorded: boolean;
@@ -141,7 +136,7 @@ function publicPlayer(p: ServerPlayer): PublicPlayer {
     name: p.name,
     isHost: p.isHost,
     connected: p.connected,
-    ready: p.ready,
+    alive: p.alive,
   };
 }
 
@@ -150,21 +145,8 @@ function publicRoom(r: Room): PublicRoom {
     a.isHost === b.isHost ? a.name.localeCompare(b.name) : a.isHost ? -1 : 1
   );
   const aliveCount = Array.from(r.players.values()).filter((p) => p.alive).length;
-  const voteState = r.winnerVote;
-  const votedCount = voteState ? voteState.votes.size : 0;
-  // Total voters: every player in the room (alive or dead, since dead players
-  // still vote in winner voting per spec §8).
-  const totalVoters = r.players.size;
-  let readyCount = 0;
-  let neededReadyCount = 0;
-  if (r.status === "inVote") {
-    for (const p of r.players.values()) {
-      if (p.alive && p.connected) {
-        neededReadyCount++;
-        if (p.ready) readyCount++;
-      }
-    }
-  }
+  const votedCount = r.playerVote?.votes.size ?? 0;
+  const totalVoters = Array.from(r.players.values()).filter((p) => p.alive).length;
   const out: PublicRoom = {
     code: r.code,
     status: r.status,
@@ -175,13 +157,15 @@ function publicRoom(r: Room): PublicRoom {
     votedCount,
     totalVoters,
     players: players.map(publicPlayer),
-    readyCount,
-    neededReadyCount,
+    leaderboard: [...r.scores.values()].map((score) => ({ ...score, totalWins: score.winsAsMafia + score.winsAsVillager }))
+      .sort((a, b) => b.totalWins - a.totalWins || b.gamesPlayed - a.gamesPlayed || a.displayName.localeCompare(b.displayName))
+      .map((score, i) => ({ ...score, rank: i + 1 })),
   };
   if (r.status === "night" && r.night) {
     out.nightEndsAt = r.night.endsAt;
   }
-  if (r.status === "morning" || r.status === "winnerVote" || r.status === "inVote") {
+  if (r.status === "inVote" && r.playerVote) out.voteEndsAt = r.playerVote.endsAt;
+  if ((r.status === "morning" || r.status === "inVote") && r.morningMessage) {
     out.morningMessage = r.morningMessage;
   }
   if (r.status === "finished") {
@@ -199,12 +183,12 @@ function personalState(r: Room, p: ServerPlayer): PersonalState {
       isHost: p.isHost,
       alive: p.alive,
       connected: p.connected,
-      ready: p.ready,
     },
   };
   if (r.status === "night" && p.alive && p.nightTask) {
     state.nightTask = p.nightTask;
   }
+  if (r.status === "inVote" && r.playerVote) state.meHasVoted = r.playerVote.votes.has(p.id);
   return state;
 }
 
@@ -266,10 +250,8 @@ function assignRoles(r: Room) {
     p.role = i < r.mafiaCount ? "mafia" : "villager";
     p.alive = true;
     p.revealedRole = false;
-    p.lastWinnerVote = null;
     p.nightTask = null;
     p.quizAnswerIndex = null;
-    p.ready = false;
   }
 }
 
@@ -277,8 +259,7 @@ function startNight(r: Room, io: any) {
   // §9: if fewer than 2 alive players, skip the night and go to winner voting.
   const alivePlayers = Array.from(r.players.values()).filter((p) => p.alive);
   if (alivePlayers.length < 2) {
-    r.status = "winnerVote";
-    r.winnerVote = { votes: new Map(), locked: false, startedAt: Date.now() };
+    finishGame(r.code, io, mafiaAliveCount(r) === 0 ? "villagers" : "mafia");
     broadcastRoom(r, io);
     return;
   }
@@ -320,30 +301,17 @@ function startNight(r: Room, io: any) {
       };
       p.quizAnswerIndex = null;
     } else {
-      // Mafia: targets are all OTHER alive players, styled as options.
-      // CRITICAL privacy requirement: the screen layout must look identical
-      // to a villager's quiz screen, so the option count must match (4).
-      // If we have fewer than 4 alive targets, pad with neutral "Pass"
-      // entries that, when selected, do NOT count as a kill pick.
-      const realTargetIds = shuffle(aliveIds.filter((id) => id !== p.id));
+      // Mafia can see all living non-mafia players and cannot target a teammate.
+      const realTargetIds = shuffle(aliveIds.filter((id) => r.players.get(id)?.role !== "mafia"));
       const realTargetNames = realTargetIds.map((id) => r.players.get(id)!.name);
-      const paddedNames = [...realTargetNames];
-      const paddedIds = [...realTargetIds];
-      while (paddedNames.length < 4) {
-        paddedNames.push("Pass");
-        paddedIds.push("__pass__"); // sentinel; selectNightTarget rejects it as invalid
-      }
-      // If we have more than 4 alive targets, truncate to 4 (rare for an MVP).
-      const finalNames = paddedNames.slice(0, 4);
-      const finalIds = paddedIds.slice(0, 4);
       // Use a quiz-like prompt to keep the screen identical-looking.
       const prompt = pickRandom(neutralPrompts);
       p.nightTask = {
         kind: "select",
         questionId: "pick_" + r.round,
         question: prompt,
-        options: finalNames,
-        optionPlayerIds: finalIds,
+        options: realTargetNames,
+        optionPlayerIds: realTargetIds,
         selectedTargetId: null,
       };
     }
@@ -351,13 +319,15 @@ function startNight(r: Room, io: any) {
 
   broadcastRoom(r, io);
 
-  // Keep the selection window consistent for every player; it never ends early.
   setTimeout(() => endNight(r.code, io), NIGHT_DURATION_MS + 50); // small safety margin
 }
+
+function mafiaAliveCount(r: Room) { return [...r.players.values()].filter((p) => p.alive && p.role === "mafia").length; }
 
 function endNight(code: string, io: any) {
   const r = rooms.get(code);
   if (!r || r.status !== "night" || !r.night) return;
+  if (r.night.resolutionTimer) clearTimeout(r.night.resolutionTimer);
 
   // Collect valid mafia picks (count per target).
   const counts = new Map<string, number>();
@@ -367,7 +337,7 @@ function endNight(code: string, io: any) {
     if (!picker || !target) continue;
     if (!picker.alive || picker.role !== "mafia") continue;
     if (!target.alive) continue;
-    if (pickerId === targetId) continue;
+    if (pickerId === targetId || target.role === "mafia") continue;
     counts.set(targetId, (counts.get(targetId) ?? 0) + 1);
   }
 
@@ -393,86 +363,48 @@ function endNight(code: string, io: any) {
 
   broadcastRoom(r, io);
 
-  // Move to winner vote immediately after morning announcement.
-  setTimeout(() => startWinnerVote(code, io), 8000);
+  // Start private remote player voting after the morning announcement.
+  setTimeout(() => startRemoteVote(code, io), 8000);
 }
 
-function startWinnerVote(code: string, io: any) {
+function startRemoteVote(code: string, io: any) {
   const r = rooms.get(code);
-  if (!r) return;
-  if (r.status !== "morning") return;
-  r.status = "winnerVote";
-  r.winnerVote = { votes: new Map(), locked: false, startedAt: Date.now() };
-  for (const p of r.players.values()) p.lastWinnerVote = null;
-  broadcastRoom(r, io);
-  // No timer — completed when all eligible voters have voted or grace period elapses.
-  scheduleVoteCompletionCheck(code, io);
-}
-
-// Eligible voter = a player who is connected OR was disconnected within the
-// grace period (§8: "Disconnected players absent for 30 seconds must be excluded").
-function eligibleVoters(r: Room): ServerPlayer[] {
-  const now = Date.now();
-  return Array.from(r.players.values()).filter((p) => {
-    if (p.connected) return true;
-    if (p.disconnectedAt && now - p.disconnectedAt < 30_000) return true;
-    return false;
-  });
-}
-
-function scheduleVoteCompletionCheck(code: string, io: any) {
-  setTimeout(() => checkWinnerVoteComplete(code, io), 200);
-}
-
-function checkWinnerVoteComplete(code: string, io: any) {
-  const r = rooms.get(code);
-  if (!r || r.status !== "winnerVote" || !r.winnerVote || r.winnerVote.locked) return;
-  const voters = eligibleVoters(r);
-  if (voters.length === 0) return;
-  const allVoted = voters.every((p) => p.lastWinnerVote !== null);
-  if (!allVoted) return;
-
-  // Tally
-  const tally = new Map<WinnerOption, number>();
-  for (const p of voters) {
-    const v = p.lastWinnerVote;
-    if (!v) continue;
-    tally.set(v, (tally.get(v) ?? 0) + 1);
-  }
-  let maxCount = 0;
-  for (const c of tally.values()) if (c > maxCount) maxCount = c;
-  const top = Array.from(tally.entries()).filter(([, c]) => c === maxCount).map(([k]) => k);
-
-  if (top.length > 1) {
-    // Tie — clear all votes and restart.
-    for (const p of r.players.values()) p.lastWinnerVote = null;
-    r.winnerVote.votes = new Map();
-    r.winnerVote.startedAt = Date.now();
-    broadcastRoom(r, io);
-    return;
-  }
-
-  const winnerOption = top[0];
-  r.winnerVote.locked = true;
-
-  io.to(code).emit(EV.WINNER_VOTE_RESULT, { result: winnerOption });
-  io.to(code).emit(EV.WINNER_VOTE_UPDATED, { votedCount: r.winnerVote.votes.size, totalVoters: eligibleVoters(r).length });
-
-  if (winnerOption === "notYet") {
-    // Move to in-person voting phase.
-    setTimeout(() => startInVote(code, io), 1200);
-  } else {
-    finishGame(code, io, winnerOption as GameWinner);
-  }
-}
-
-function startInVote(code: string, io: any) {
-  const r = rooms.get(code);
-  if (!r) return;
-  if (r.status !== "winnerVote") return;
+  if (!r || r.status !== "morning") return;
   r.status = "inVote";
-  for (const p of r.players.values()) p.ready = false;
+  r.playerVote = { votes: new Map(), endsAt: Date.now() + 5 * 60_000 };
   broadcastRoom(r, io);
+  // Give remote players up to five minutes; if the deadline expires, resolve
+  // using the ballots received so the room cannot remain stuck indefinitely.
+  setTimeout(() => resolveRemoteVote(code, io), 5 * 60_000);
+}
+
+function resolveRemoteVote(code: string, io: any) {
+  const r = rooms.get(code);
+  if (!r || r.status !== "inVote" || !r.playerVote) return;
+  const counts = new Map<string, number>();
+  for (const [voterId, targetId] of r.playerVote.votes) {
+    const voter = r.players.get(voterId), target = r.players.get(targetId);
+    if (voter?.alive && target?.alive) counts.set(targetId, (counts.get(targetId) ?? 0) + 1);
+  }
+  let eliminatedId: string | null = null;
+  const max = Math.max(0, ...counts.values());
+  if (max > 0) eliminatedId = pickRandom([...counts.entries()].filter(([, n]) => n === max).map(([id]) => id));
+  if (eliminatedId) {
+    const eliminated = r.players.get(eliminatedId)!;
+    eliminated.alive = false;
+    r.morningMessage = `${eliminated.name} was voted out.`;
+  } else r.morningMessage = "No player was eliminated by the vote.";
+  r.playerVote = null;
+  if (mafiaAliveCount(r) === 0) finishGame(code, io, "villagers");
+  else if (mafiaAliveCount(r) >= [...r.players.values()].filter((p) => p.alive && p.role === "villager").length) finishGame(code, io, "mafia");
+  else {
+    r.status = "morning";
+    broadcastRoom(r, io);
+    setTimeout(() => {
+      const room = rooms.get(code);
+      if (room?.status === "morning") startNight(room, io);
+    }, 3500);
+  }
 }
 
 function finishGame(code: string, io: any, winner: GameWinner) {
@@ -480,17 +412,20 @@ function finishGame(code: string, io: any, winner: GameWinner) {
   if (!r || r.resultRecorded) return;
   r.status = "finished";
   r.winner = winner;
-  r.winnerVote = null;
-  broadcastRoom(r, io);
 
-  // Persist leaderboard on the server (exactly once).
-  const players = Array.from(r.players.values()).map((p) => ({ name: p.name, role: p.role! }));
+  // Scores are scoped to this in-memory room and disappear when it is closed.
+  for (const p of r.players.values()) {
+    if (!p.role) continue;
+    const key = p.nameKey;
+    const score = r.scores.get(key) ?? { displayName: p.name, winsAsMafia: 0, winsAsVillager: 0, gamesPlayed: 0 };
+    score.gamesPlayed++;
+    if (winner === "mafia" && p.role === "mafia") score.winsAsMafia++;
+    if (winner === "villagers" && p.role === "villager") score.winsAsVillager++;
+    r.scores.set(key, score);
+  }
   r.resultRecorded = true;
-  applyGameResult({ players, winner })
-    .then(() => {
-      io.to(code).emit(EV.LEADERBOARD_UPDATED);
-    })
-    .catch((e) => console.error("applyGameResult failed", e));
+  broadcastRoom(r, io);
+  io.to(code).emit(EV.LEADERBOARD_UPDATED);
   io.to(code).emit(EV.GAME_FINISHED, { winner });
 }
 
@@ -498,7 +433,7 @@ function resetForReplay(r: Room) {
   r.status = "lobby";
   r.round = 0;
   r.night = null;
-  r.winnerVote = null;
+  r.playerVote = null;
   r.morningMessage = null;
   r.winner = null;
   r.resultRecorded = false;
@@ -506,10 +441,8 @@ function resetForReplay(r: Room) {
     p.role = null;
     p.alive = true;
     p.revealedRole = false;
-    p.lastWinnerVote = null;
     p.nightTask = null;
     p.quizAnswerIndex = null;
-    p.ready = false;
   }
 }
 
@@ -535,7 +468,8 @@ export const engine = {
       players: new Map(),
       emptySince: null,
       night: null,
-      winnerVote: null,
+      playerVote: null,
+      scores: new Map(),
       morningMessage: null,
       winner: null,
       resultRecorded: false,
@@ -549,10 +483,8 @@ export const engine = {
       alive: true,
       connected: true,
       disconnectedAt: null,
-      ready: false,
       isHost: true,
       revealedRole: false,
-      lastWinnerVote: null,
       nightTask: null,
       quizAnswerIndex: null,
     };
@@ -583,10 +515,8 @@ export const engine = {
       alive: true,
       connected: true,
       disconnectedAt: null,
-      ready: false,
       isHost: false,
       revealedRole: false,
-      lastWinnerVote: null,
       nightTask: null,
       quizAnswerIndex: null,
     };
@@ -674,12 +604,11 @@ export const engine = {
     const err = validateStart(r);
     if (err) return err;
     assignRoles(r);
-    // Keep status as "lobby" so the lobby screen stays visible until everyone
-    // has confirmed their role reveal. The night phase starts on the first of:
-    //   (a) all connected players emit roleRevealComplete, OR
-    //   (b) a 30-second timeout elapses (whichever comes first).
     for (const pp of r.players.values()) {
-      io.to(pp.id).emit(EV.ROLE_ASSIGNED, { role: pp.role });
+      const teammates = pp.role === "mafia"
+        ? [...r.players.values()].filter((mate) => mate.role === "mafia" && mate.id !== pp.id).map((mate) => ({ id: mate.id, name: mate.name }))
+        : [];
+      io.to(pp.id).emit(EV.ROLE_ASSIGNED, { role: pp.role, teammates });
     }
     // Schedule the timeout-based start.
     setTimeout(() => {
@@ -688,7 +617,7 @@ export const engine = {
       // Force-start the night even if not everyone has confirmed.
       for (const pp of room.players.values()) pp.revealedRole = true;
       startNight(room, io);
-    }, 30_000);
+    }, 10_000);
     return null;
   },
 
@@ -697,11 +626,7 @@ export const engine = {
     if (!r) return;
     const p = r.players.get(playerId)!;
     p.revealedRole = true;
-    // If every connected player has confirmed, start the night.
-    const connected = Array.from(r.players.values()).filter((pp) => pp.connected);
-    if (connected.length > 0 && connected.every((pp) => pp.revealedRole)) {
-      startNight(r, io);
-    }
+    // The phase advances on the shared ten-second timer.
   },
 
   submitQuizAnswer(playerId: string, payload: any, io: any): string | null {
@@ -740,74 +665,31 @@ export const engine = {
     const target = r.players.get(targetId);
     if (!target) return "Invalid target";
     if (!target.alive) return "Target is not alive";
+    if (target.role === "mafia") return "Mafia cannot target another Mafia";
     if (targetId === playerId) return "Cannot select yourself";
     // Validate the target is in this mafia's option list (defense in depth).
     if (!p.nightTask.optionPlayerIds.includes(targetId)) return "Invalid target";
     r.night.picks.set(playerId, targetId);
     p.nightTask.selectedTargetId = targetId;
+    if (r.night.resolutionTimer) clearTimeout(r.night.resolutionTimer);
+    r.night.resolutionTimer = setTimeout(() => endNight(r.code, io), 3000);
     // Don't broadcast — never reveal Mafia selection state to others.
     return null;
   },
 
-  submitWinnerVote(playerId: string, option: any, io: any): string | null {
+  submitPlayerVote(playerId: string, targetId: any, io: any): string | null {
     const r = getRoomByPlayerId(playerId);
-    if (!r) return "Not in a room";
-    if (r.status !== "winnerVote" || !r.winnerVote) return "Not in winner vote phase";
-    if (r.winnerVote.locked) return "Voting is locked";
-    const p = r.players.get(playerId)!;
-    if (!option || !["villagers", "mafia", "notYet"].includes(option)) return "Invalid vote option";
-    p.lastWinnerVote = option as WinnerOption;
-    r.winnerVote.votes.set(playerId, option as WinnerOption);
+    if (!r || r.status !== "inVote" || !r.playerVote) return "Not in the voting phase";
+    const voter = r.players.get(playerId);
+    const target = r.players.get(String(targetId ?? ""));
+    if (!voter?.alive) return "Only living players can vote";
+    if (!target?.alive) return "Choose a living player";
+    if (target.id === voter.id) return "You cannot vote for yourself";
+    r.playerVote.votes.set(playerId, target.id);
     broadcastRoom(r, io);
-    scheduleVoteCompletionCheck(r.code, io);
+    const voters = [...r.players.values()].filter((p) => p.alive && p.connected);
+    if (voters.length > 0 && voters.every((p) => r.playerVote!.votes.has(p.id))) resolveRemoteVote(r.code, io);
     return null;
-  },
-
-  markPlayerOut(playerId: string, io: any): string | null {
-    const r = getRoomByPlayerId(playerId);
-    if (!r) return "Not in a room";
-    if (r.status !== "inVote") return "Not in the in-person voting phase";
-    const p = r.players.get(playerId)!;
-    if (!p.alive) return "You are already out";
-    p.alive = false;
-    broadcastRoom(r, io);
-    return null;
-  },
-
-  undoPlayerOut(hostId: string, targetId: string, io: any): string | null {
-    const r = getRoomByPlayerId(hostId);
-    if (!r) return "Not in a room";
-    const host = r.players.get(hostId)!;
-    if (!host.isHost) return "Only the host can undo an elimination";
-    if (r.status !== "inVote") return "Not in the in-person voting phase";
-    const target = r.players.get(targetId);
-    if (!target) return "Invalid target";
-    target.alive = true;
-    broadcastRoom(r, io);
-    return null;
-  },
-
-  toggleReady(playerId: string, io: any): string | null {
-    const r = getRoomByPlayerId(playerId);
-    if (!r) return "Not in a room";
-    if (r.status !== "inVote") return "Not in the in-person voting phase";
-    const p = r.players.get(playerId)!;
-    if (!p.alive) return "Dead players do not need to ready up";
-    p.ready = !p.ready;
-    broadcastRoom(r, io);
-
-    // If every alive, connected player is ready, start the next night.
-    const aliveConnected = Array.from(r.players.values()).filter((pp) => pp.alive && pp.connected);
-    if (aliveConnected.length > 0 && aliveConnected.every((pp) => pp.ready)) {
-      for (const pp of r.players.values()) pp.ready = false;
-      startNight(r, io);
-    }
-    return null;
-  },
-
-  nextNight(playerId: string, io: any): string | null {
-    // Convenience alias: act like "Everyone ready" trigger for any eligible player.
-    return this.toggleReady(playerId, io);
   },
 
   playAgain(hostId: string, io: any): string | null {

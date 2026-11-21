@@ -11,9 +11,18 @@ const EASE = [0.22, 1, 0.36, 1] as const;
 
 export function RoleRevealScreen() {
   const role = useGame((s) => s.role);
+  const teammates = useGame((s) => s.mafiaTeammates);
   const actions = useActions();
   const [revealed, setRevealed] = useState(false);
   const [done, setDone] = useState(false);
+
+  useEffect(() => {
+    const timer = window.setTimeout(() => {
+      setDone(true);
+      actions.roleRevealComplete();
+    }, 10_000);
+    return () => window.clearTimeout(timer);
+  }, []);
 
   useEffect(() => {
     const onBlur = () => setRevealed(false);
@@ -83,7 +92,7 @@ export function RoleRevealScreen() {
                       </h1>
                       <p className="text-xs text-foreground/65 px-6 text-center text-pretty">
                         {isMafia
-                          ? "Eliminate villagers at night. No one knows your teammates."
+                          ? `Eliminate villagers at night.${teammates.length ? ` Your fellow Mafia: ${teammates.map((p) => p.name).join(", ")}.` : " You are the only Mafia."}`
                           : "Survive. Find the Mafia among you."}
                       </p>
                       <p className="text-[10px] uppercase tracking-[0.3em] text-foreground/40 mt-5">
@@ -136,10 +145,10 @@ export function RoleRevealScreen() {
         <FadeItem delay={0.1} className="w-full text-center mt-7">
           <div className="flex items-center justify-center gap-2 text-muted-foreground">
             <Eye className="w-3.5 h-3.5" />
-            <p className="text-sm">Waiting for night to begin…</p>
+            <p className="text-sm">The first night begins automatically…</p>
           </div>
           <p className="text-[11px] text-muted-foreground/55 mt-2">
-            Everyone will see the same screen for 15 seconds.
+            Your role card closes automatically after 10 seconds.
           </p>
         </FadeItem>
       )}

@@ -114,31 +114,9 @@ io.on("connection", (socket) => {
     if (err) socket.emit(EV.ERROR, { code: "selectNightTarget", message: err });
   });
 
-  // ── Winner voting ────────────────────────────────────────────────────────
-  socket.on(EV.SUBMIT_WINNER_VOTE, (payload: any) => {
-    const err = engine.submitWinnerVote(socket.id, payload?.option, io);
-    if (err) socket.emit(EV.ERROR, { code: "submitWinnerVote", message: err });
-  });
-
-  // ── In-person voting ─────────────────────────────────────────────────────
-  socket.on(EV.MARK_PLAYER_OUT, () => {
-    const err = engine.markPlayerOut(socket.id, io);
-    if (err) socket.emit(EV.ERROR, { code: "markPlayerOut", message: err });
-  });
-
-  socket.on(EV.UNDO_PLAYER_OUT, (payload: any) => {
-    const err = engine.undoPlayerOut(socket.id, String(payload?.targetId ?? ""), io);
-    if (err) socket.emit(EV.ERROR, { code: "undoPlayerOut", message: err });
-  });
-
-  socket.on(EV.TOGGLE_READY, () => {
-    const err = engine.toggleReady(socket.id, io);
-    if (err) socket.emit(EV.ERROR, { code: "toggleReady", message: err });
-  });
-
-  socket.on(EV.NEXT_NIGHT, () => {
-    const err = engine.nextNight(socket.id, io);
-    if (err) socket.emit(EV.ERROR, { code: "nextNight", message: err });
+  socket.on(EV.SUBMIT_PLAYER_VOTE, (payload: any) => {
+    const err = engine.submitPlayerVote(socket.id, payload?.targetId, io);
+    if (err) socket.emit(EV.ERROR, { code: "submitPlayerVote", message: err });
   });
 
   socket.on(EV.PLAY_AGAIN, () => {

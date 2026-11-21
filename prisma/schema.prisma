@@ -1,6 +1,5 @@
 // Prisma schema for Mafia – No Host Needed
-// PostgreSQL (Neon) is used for the persistent global leaderboard only.
-// Active game state lives in server memory (mini-services/game-service).
+// Active rooms, games, votes, and room leaderboards live in game-service memory.
 
 generator client {
   provider = "prisma-client-js"
@@ -10,19 +9,4 @@ datasource db {
   provider  = "postgresql"
   url       = env("DATABASE_URL")
   directUrl = env("DATABASE_URL_UNPOOLED")
-}
-
-/// Global leaderboard entry, keyed by a normalized name (trim + lower-case).
-/// A player's role is NEVER stored or revealed here.
-model LeaderboardEntry {
-  id             String   @id @default(cuid())
-  nameKey        String   @unique
-  displayName    String
-  winsAsMafia    Int      @default(0)
-  winsAsVillager Int      @default(0)
-  gamesPlayed    Int      @default(0)
-  createdAt      DateTime @default(now())
-  updatedAt      DateTime @updatedAt
-
-  @@index([winsAsMafia, winsAsVillager])
 }
